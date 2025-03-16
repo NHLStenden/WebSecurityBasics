@@ -1,61 +1,77 @@
 <?php
-$logfile = 'csp_log.txt';
+$logFile = "/var/log/apache2/error.log"; // Pas aan voor Alpine: "/var/log/httpd/error.log"
 
-// Lezen van het logbestand
-$logs = [];
-if (file_exists($logfile)) {
-    $logEntries = file($logfile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    $logEntries = array_reverse($logEntries); // Laatste logs eerst tonen
-    foreach ($logEntries as $log) {
-        $logData = json_decode(substr($log, 21), true); // Verwijder datum en parse JSON
-        if ($logData) {
-            $cspViolations[] = [
-                "Date" => substr($log, 0, 19),
-                "Blocked URI" => $logData["blocked-uri"] ?? "N/A",
-                "Violated Directive" => $logData["violated-directive"] ?? "N/A",
-                "Original Policy" => $logData["original-policy"] ?? "N/A",
-                "Document URI" => $logData["document-uri"],
-                "Referrer" => $logData["referrer"] ?? "N/A"
-            ];
-        }
+if (!file_exists($logFile)) {
+  die("Geen logs gevonden!");
+}
+
+// Lees de logs en filter regels met '[CSP REPORT]'
+$logLines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+$cspLogs = [];
+
+foreach ($logLines as $line) {
+  if (strpos($line, '[php:notice]') !== false && strpos($line, '"csp-report":') !== false) {
+    // Zoek de JSON in de logregel
+    preg_match('/\{.*\}/', $line, $matches);
+    if (!empty($matches[0])) {
+      $jsonData = json_decode($matches[0], true);
+      if ($jsonData && isset($jsonData['csp-report'])) {
+        $cspLogs[] = [
+          'timestamp' => substr($line, 1, 20), // Haal tijdstip uit de logregel
+          'document' => $jsonData['csp-report']['document-uri'] ?? 'N/A',
+          'referrer' => $jsonData['csp-report']['referrer'] ?? 'N/A',
+          'violated_directive' => $jsonData['csp-report']['violated-directive'] ?? 'N/A',
+          'effective_directive' => $jsonData['csp-report']['effective-directive'] ?? 'N/A',
+          'blocked_uri' => $jsonData['csp-report']['blocked-uri'] ?? 'N/A',
+          'line_number' => $jsonData['csp-report']['line-number'] ?? 'N/A',
+          'source_file' => $jsonData['csp-report']['source-file'] ?? 'N/A',
+        ];
+      }
     }
+  }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="nl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CSP Logs</title>
-
-    <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self';script-src 'self';style-src 'self';connect-src 'self'">
     <link rel="stylesheet" href="css/csp_logs.css">
 </head>
 <body>
-<h1>CSP Overtredingen</h1>
-<table>
-    <tr>
-        <th>Datum</th>
-        <th>Blocked URI</th>
-        <th>Document URI</th>
-        <th>Referrer</th>
-        <th>Overtreden Regel</th>
-    </tr>
-    <?php if (!empty($cspViolations)): ?>
-        <?php foreach ($cspViolations as $entry): ?>
-            <tr>
-                <td><?php echo htmlspecialchars($entry["Date"]); ?></td>
-                <td><?php echo htmlspecialchars($entry["Blocked URI"]); ?></td>
-                <td><?php echo htmlspecialchars($entry["Referrer"]); ?></td>
-                <td><?php echo htmlspecialchars(json_encode($entry["Blocked URI"])); ?></td>
-            </tr>
-        <?php endforeach; ?>
-    <?php else: ?>
+
+<h2>CSP Reports</h2>
+
+<?php if (empty($cspLogs)): ?>
+    <p>Geen CSP overtredingen gevonden.</p>
+<?php else: ?>
+    <table>
         <tr>
-            <td colspan="4">Geen CSP-overtredingen gevonden.</td>
+            <th>Tijdstip</th>
+            <th>Document</th>
+            <th>Referrer</th>
+            <th>Overtreden Directive</th>
+            <th>Effectieve Directive</th>
+            <th>Geblokkeerde URI</th>
+            <th>Regelnummer</th>
+            <th>Bronbestand</th>
         </tr>
-    <?php endif; ?>
-</table>
+      <?php foreach ($cspLogs as $log): ?>
+          <tr>
+              <td><?= htmlspecialchars($log['timestamp']) ?></td>
+              <td><?= htmlspecialchars($log['document']) ?></td>
+              <td><?= htmlspecialchars($log['referrer']) ?></td>
+              <td><?= htmlspecialchars($log['violated_directive']) ?></td>
+              <td><?= htmlspecialchars($log['effective_directive']) ?></td>
+              <td><?= htmlspecialchars($log['blocked_uri']) ?></td>
+              <td><?= htmlspecialchars($log['line_number']) ?></td>
+              <td><?= htmlspecialchars($log['source_file']) ?></td>
+          </tr>
+      <?php endforeach; ?>
+    </table>
+<?php endif; ?>
+
 </body>
 </html>

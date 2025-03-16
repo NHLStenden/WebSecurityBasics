@@ -1,10 +1,12 @@
 version: '3.8'
 services:
   api:
+    container_name: webserver-api
     build: ./api
     ports:
       - "8081:80"
   web:
+    container_name: webserver
     build: ./web
     working_dir: /app
     volumes:

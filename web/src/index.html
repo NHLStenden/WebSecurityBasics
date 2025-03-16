@@ -5,15 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CORS & CSP Test</title>
     <script src="js/script.js" defer></script>
-    <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self' http://localhost:8081/api;
-                   connect-src 'self' http://localhost:8081;"
-    >
 </head>
 <body>
-<h1>To-Do Lijst</h1>
+<h1 style="color:blue">To-Do Lijst</h1>
 <ul id="todo-list"></ul>
-<p>
+<p >
     <a href="csp_logs.php">Content Security Policy Report</a>
 </p>
 </body>
